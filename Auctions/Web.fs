@@ -109,7 +109,7 @@ module ToJson=
             match maybeAmountAndWinner with
             | None -> ("","")
             | Some (amount, winner)->
-                (winner.ToString(), amount.ToString())
+                (winner.ToString(), amount.value.ToString())
     let discloseBidders =Auction.biddersAreOpen auction
     let bid (x: Bid) =
       let userId = string x.user
