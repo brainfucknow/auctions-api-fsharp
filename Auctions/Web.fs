@@ -79,7 +79,7 @@ module OfJson=
     | JObject o -> create <!> (o .@ "amount")
     | x -> Decode.Fail.objExpected x
     |> Result.mapError string
-  let addAuctionReq user (json:JsonValue) =
+  let addAuctionReq user getNextAuctionId (json:JsonValue) =
     let create id startsAt title endsAt (currency:string option) (typ:string option) (``open``:bool option)
       =
         let currency= currency |> Option.bind Currency.tryParse |> Option.defaultValue Currency.VAC
@@ -87,10 +87,10 @@ module OfJson=
           timeFrame =TimeSpan.FromSeconds(0.0) }
         let typ = typ |> Option.bind Typ.TryParse
                       |> Option.defaultValue defaultTyp
-        { user = user; id=id; startsAt=startsAt; expiry=endsAt; title=title; currency=currency; typ=typ
+        { user = user; id = id |> Option.defaultWith getNextAuctionId; startsAt = startsAt; expiry = endsAt; title = title; currency = currency; typ = typ
           openBidders = Option.defaultValue false ``open`` }
     match FSharpData.Encoding json with
-    | JObject o -> create <!> (o .@ "id") <*> (o .@ "startsAt") <*> (o .@ "title")<*> (o .@ "endsAt")
+    | JObject o -> create <!> (o .@? "id") <*> (o .@ "startsAt") <*> (o .@ "title")<*> (o .@ "endsAt")
                    <*> (o .@? "currency")<*> (o .@? "type")<*> (o .@? "open")
     | x -> Decode.Fail.objExpected x
     |> Result.mapError string
@@ -125,6 +125,7 @@ module ToJson=
     ] |> jobj
 
 let webPart (agent : AuctionDelegator) (time:unit->DateTime) =
+  let getNextAuctionId () = agent.GetAuctions() |> Async.map (List.map (Auction.getId >> AuctionId.unwrap) >> List.max >> (fun i->i + 1L) )
 
   let overview : WebPart= GET >=> fun ctx -> monad {
     let! auctionList =  agent.GetAuctions() |> liftM Some |> OptionT
@@ -159,7 +160,7 @@ let webPart (agent : AuctionDelegator) (time:unit->DateTime) =
   let register =
     let toPostedAuction user =
         Json.getBody
-          >> Result.bind (OfJson.addAuctionReq user)
+          >> Result.bind (OfJson.addAuctionReq user getNextAuctionId)
           >> Result.map (Timed.at (time()) >>AddAuction)
           >> Result.mapError InvalidUserData
 
