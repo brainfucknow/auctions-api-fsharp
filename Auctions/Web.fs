@@ -152,6 +152,8 @@ let webPart (agent : AuctionDelegator) (time:unit->DateTime) =
           match! lift asyncResult with
           | Ok commandSuccess->
             return! Json.OK (toJson commandSuccess) ctx
+          | Error (AuctionNotFound _ as e) -> return! Json.NOT_FOUND (toJson e) ctx
+          | Error (UnknownAuction _ as e) -> return! Json.NOT_FOUND (toJson e) ctx
           | Error e-> return! Json.BAD_REQUEST (toJson e) ctx
       | Error c'->return! Json.BAD_REQUEST (toJson c') ctx
     }
