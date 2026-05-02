@@ -125,7 +125,7 @@ module ToJson=
     ] |> jobj
 
 let webPart (agent : AuctionDelegator) (time:unit->DateTime) =
-  let getNextAuctionId () = agent.GetAuctions() |> Async.map (List.map (Auction.getId >> AuctionId.unwrap) >> List.max >> (fun i->i + 1L) )
+  let getNextAuctionId () = agent.GetAuctions() |> Async.map (List.map (Auction.getId >> AuctionId.unwrap) >> List.max >> (fun i -> AuctionId (i + 1L)))
 
   let overview : WebPart= GET >=> fun ctx -> monad {
     let! auctionList =  agent.GetAuctions() |> liftM Some |> OptionT
@@ -159,17 +159,26 @@ let webPart (agent : AuctionDelegator) (time:unit->DateTime) =
     }
 
   /// register auction
-  let register =
-    let toPostedAuction user =
-        Json.getBody
-          >> Result.bind (OfJson.addAuctionReq user getNextAuctionId)
-          >> Result.map (Timed.at (time()) >>AddAuction)
-          >> Result.mapError InvalidUserData
-
+  let register : WebPart =
     authenticated (function
       | NoSession -> UNAUTHORIZED "Not logged in"
       | UserLoggedOn user ->
-        POST >=> handleCommandAsync (toPostedAuction user)
+        POST >=> fun ctx -> monad {
+            let! nextId = getNextAuctionId() |> liftM Some |> OptionT
+            let command =
+                Json.getBody ctx
+                  |> Result.bind (OfJson.addAuctionReq user (fun () -> nextId))
+                  |> Result.map (Timed.at (time()) >> AddAuction)
+                  |> Result.mapError InvalidUserData
+            match agent.UserCommand <!> command with
+            | Ok asyncResult ->
+                match! lift asyncResult with
+                | Ok commandSuccess -> return! Json.OK (toJson commandSuccess) ctx
+                | Error (AuctionNotFound _ as e) -> return! Json.NOT_FOUND (toJson e) ctx
+                | Error (UnknownAuction _ as e) -> return! Json.NOT_FOUND (toJson e) ctx
+                | Error e -> return! Json.BAD_REQUEST (toJson e) ctx
+            | Error c' -> return! Json.BAD_REQUEST (toJson c') ctx
+        }
       )
 
   /// place bid
