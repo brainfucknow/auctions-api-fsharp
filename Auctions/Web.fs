@@ -125,7 +125,10 @@ module ToJson=
     ] |> jobj
 
 let webPart (agent : AuctionDelegator) (time:unit->DateTime) =
-  let getNextAuctionId () = agent.GetAuctions() |> Async.map (List.map (Auction.getId >> AuctionId.unwrap) >> List.max >> (fun i -> AuctionId (i + 1L)))
+  let getNextAuctionId () = agent.GetAuctions() |> Async.map (fun auctions ->
+    match auctions |> List.map (Auction.getId >> AuctionId.unwrap) with
+    | [] -> AuctionId 1L
+    | ids -> AuctionId (List.max ids + 1L))
 
   let overview : WebPart= GET >=> fun ctx -> monad {
     let! auctionList =  agent.GetAuctions() |> liftM Some |> OptionT
