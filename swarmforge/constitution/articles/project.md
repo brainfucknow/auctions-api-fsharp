@@ -14,8 +14,7 @@
 - Verify with, in order: `dotnet restore auction-site.sln`, `dotnet build auction-site.sln --no-restore`, `dotnet test auction-site.sln --no-restore` (Expecto, 84 unit/integration tests as of installation; baseline green).
 - Apply the engineering article's target-based verification and evidence-reuse rules. Fix applicable failures before handoff.
 - Each language guide in `swarmforge/languages/` names a security code scanner and a dependency audit. A project without one adds a line here per absent tool, with its reason:
-  - `Security code scanner absent: <reason>`
-  - `Dependency audit absent: <reason>`
+  - `Security code scanner absent: no maintained F# scanner exists and the .NET SDK analyzers skip F# (swarmforge/languages/fsharp.md)`
 - The architect, hardener, and QA own property-test verification for affected behavior; keep it separate from normal unit, coverage, and mutation runs.
 
 ## Handoffs
